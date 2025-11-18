@@ -19,14 +19,12 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 #define I2C_SCL 25
 
 // ----- Wi-Fi -----
-const char* WIFI_SSID     = "Panic";
-const char* WIFI_PASSWORD = "987654321";
+const char* WIFI_SSID     = "HONOR_X7c";
+const char* WIFI_PASSWORD = "uuuuuuuub";
 
 // ----- MQTT (HiveMQ Cloud) -----
-const char* MQTT_HOST = "df8fb88676714b18b69e81cf82dee7dd.s1.eu.hivemq.cloud";
+const char* MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
 const uint16_t MQTT_PORT = 8883;
-const char* MQTT_USERNAME = "YOUR_MQTT_USERNAME";
-const char* MQTT_PASSWORD = "YOUR_MQTT_PASSWORD";
 
 const char* MQTT_TOPIC_SUB = "smart-alert/sensors/#";
 
@@ -132,6 +130,8 @@ void lcdShow(float temperature, int motion) {
   }
 }
 
+
+
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   static char buf[512];
   unsigned int len = min(length, (unsigned int)(sizeof(buf) - 1));
@@ -160,13 +160,35 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
 void ensureMqttConnected() {
   while (!mqtt.connected()) {
     String clientId = "esp32-alarm-" + String((uint32_t)ESP.getEfuseMac(), HEX);
-    if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MQTT: Connecting");
+    lcd.setCursor(0, 1);
+    lcd.print("ClientID:");
+    lcd.print(clientId.substring(0, 6)); // short for LCD
+
+    if (mqtt.connect(clientId.c_str())) {  // no username/password
       mqtt.subscribe(MQTT_TOPIC_SUB);
+
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("MQTT: Connected");
+      lcd.setCursor(0, 1);
+      lcd.print("Sub:");
+      lcd.print(MQTT_TOPIC_SUB);
+      delay(1000);
     } else {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("MQTT: Failed");
+      lcd.setCursor(0, 1);
+      lcd.print("Retry in 2s");
       delay(2000);
     }
   }
 }
+
 
 void setup() {
   pinMode(LED_RED_PIN, OUTPUT);
