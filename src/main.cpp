@@ -27,7 +27,6 @@ const char *MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
 const uint16_t MQTT_PORT = 8883;
 const char *MQTT_USER = "esp32-buzzer-client";
 const char *MQTT_PASS = "7Aw0Pa1TF>>";
-
 const char *MQTT_TOPIC_SUB = "smart-alert/sensors/#";
 
 String localMac;
