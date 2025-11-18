@@ -5,10 +5,10 @@
 #include <ArduinoJson.h>
 
 // ----- Pins -----
-#define LED_RED_PIN    32  // Power (steady on)
-#define LED_GREEN_PIN  33  // Idle/ready (on when idle)
-#define LED_WHITE_PIN  14  // Busy/transmitting (blink while beeping)
-#define BUZZER_PIN     27  // Buzzer pin
+#define LED_RED_PIN 32   // Power (steady on)
+#define LED_GREEN_PIN 33 // Idle/ready (on when idle)
+#define LED_WHITE_PIN 14 // Busy/transmitting (blink while beeping)
+#define BUZZER_PIN 27    // Buzzer pin
 
 // ----- LCD -----
 #define LCD_ADDR 0x27
@@ -19,14 +19,16 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 #define I2C_SCL 25
 
 // ----- Wi-Fi -----
-const char* WIFI_SSID     = "HONOR_X7c";
-const char* WIFI_PASSWORD = "uuuuuuuub";
+const char *WIFI_SSID = "HONOR_X7c";
+const char *WIFI_PASSWORD = "uuuuuuuub";
 
 // ----- MQTT (HiveMQ Cloud) -----
-const char* MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
+const char *MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
 const uint16_t MQTT_PORT = 8883;
+const char *MQTT_USER = "esp32-buzzer-client";
+const char *MQTT_PASS = "7Aw0Pa1TF>>";
 
-const char* MQTT_TOPIC_SUB = "smart-alert/sensors/#";
+const char *MQTT_TOPIC_SUB = "smart-alert/sensors/#";
 
 String localMac;
 
@@ -76,27 +78,33 @@ const uint32_t WHITE_BLINK_MS = 120;
 // Buzzer wiring: set true if your buzzer is active-low (buzzes when pin is LOW).
 const bool BUZZER_ACTIVE_LOW = true;
 
-void buzzerOn() {
+void buzzerOn()
+{
   digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? LOW : HIGH);
 }
-void buzzerOff() {
+void buzzerOff()
+{
   digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? HIGH : LOW);
 }
 
-void setIdleLights() {
+void setIdleLights()
+{
   digitalWrite(LED_RED_PIN, HIGH);   // Power steady
   digitalWrite(LED_GREEN_PIN, HIGH); // Idle on
   digitalWrite(LED_WHITE_PIN, LOW);  // Busy off
   buzzerOff();                       // Ensure silent when idle
 }
 
-void setBusyStart() {
-  digitalWrite(LED_GREEN_PIN, LOW);  // Not idle
+void setBusyStart()
+{
+  digitalWrite(LED_GREEN_PIN, LOW); // Not idle
 }
 
-void blinkWhiteDuring(uint32_t durationMs) {
+void blinkWhiteDuring(uint32_t durationMs)
+{
   uint32_t start = millis();
-  while (millis() - start < durationMs) {
+  while (millis() - start < durationMs)
+  {
     digitalWrite(LED_WHITE_PIN, HIGH);
     delay(WHITE_BLINK_MS);
     digitalWrite(LED_WHITE_PIN, LOW);
@@ -104,35 +112,42 @@ void blinkWhiteDuring(uint32_t durationMs) {
   }
 }
 
-void beepOnce(uint32_t durationMs) {
+void beepOnce(uint32_t durationMs)
+{
   buzzerOn();
   blinkWhiteDuring(durationMs);
   buzzerOff();
 }
 
-void lcdShow(float temperature, int motion) {
+void lcdShow(float temperature, int motion)
+{
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Temp: ");
-  if (isnan(temperature)) {
+  if (isnan(temperature))
+  {
     lcd.print("--.-");
-  } else {
+  }
+  else
+  {
     lcd.print(temperature, 1);
   }
   lcd.print(" C");
 
   lcd.setCursor(0, 1);
   lcd.print("Motion: ");
-  if (motion < 0) {
+  if (motion < 0)
+  {
     lcd.print("-");
-  } else {
+  }
+  else
+  {
     lcd.print(motion);
   }
 }
 
-
-
-void onMqttMessage(char* topic, byte* payload, unsigned int length) {
+void onMqttMessage(char *topic, byte *payload, unsigned int length)
+{
   static char buf[512];
   unsigned int len = min(length, (unsigned int)(sizeof(buf) - 1));
   memcpy(buf, payload, len);
@@ -140,7 +155,8 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
 
   StaticJsonDocument<256> doc;
   DeserializationError err = deserializeJson(doc, buf);
-  if (err) {
+  if (err)
+  {
     setBusyStart();
     beepOnce(BEEP_MS);
     setIdleLights();
@@ -149,7 +165,7 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
 
   float temperature = doc["temperature"] | NAN;
   int motion = doc["motion"] | -1;
-  const char* mac = doc["mac"] | "";
+  const char *mac = doc["mac"] | "";
 
   setBusyStart();
   beepOnce(BEEP_MS);
@@ -157,8 +173,10 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   setIdleLights();
 }
 
-void ensureMqttConnected() {
-  while (!mqtt.connected()) {
+void ensureMqttConnected()
+{
+  while (!mqtt.connected())
+  {
     String clientId = "esp32-alarm-" + String((uint32_t)ESP.getEfuseMac(), HEX);
 
     lcd.clear();
@@ -168,7 +186,8 @@ void ensureMqttConnected() {
     lcd.print("ClientID:");
     lcd.print(clientId.substring(0, 6)); // short for LCD
 
-    if (mqtt.connect(clientId.c_str())) {  // no username/password
+    if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS))
+    { // no username/password
       mqtt.subscribe(MQTT_TOPIC_SUB);
 
       lcd.clear();
@@ -178,7 +197,9 @@ void ensureMqttConnected() {
       lcd.print("Sub:");
       lcd.print(MQTT_TOPIC_SUB);
       delay(1000);
-    } else {
+    }
+    else
+    {
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("MQTT: Failed");
@@ -189,8 +210,8 @@ void ensureMqttConnected() {
   }
 }
 
-
-void setup() {
+void setup()
+{
   pinMode(LED_RED_PIN, OUTPUT);
   pinMode(LED_GREEN_PIN, OUTPUT);
   pinMode(LED_WHITE_PIN, OUTPUT);
@@ -220,11 +241,13 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print("to hotspot...");
   uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000)
+  {
     delay(300);
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     // Show "Ready" once Wi-Fi is connected
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -232,7 +255,9 @@ void setup() {
     lcd.setCursor(0, 1);
     lcd.print(WIFI_SSID);
     delay(1000);
-  } else {
+  }
+  else
+  {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("WiFi failed");
@@ -258,8 +283,10 @@ void setup() {
   setIdleLights();
 }
 
-void loop() {
-  if (!mqtt.connected()) {
+void loop()
+{
+  if (!mqtt.connected())
+  {
     ensureMqttConnected();
   }
   mqtt.loop();
