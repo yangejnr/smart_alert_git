@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
 
 // ----- Pins -----
 #define LED_RED_PIN    32  // Power (steady on)
@@ -23,43 +24,16 @@ const char* WIFI_SSID     = "HONOR_X7c";
 const char* WIFI_PASSWORD = "uuuuuuuub";
 
 // ----- MQTT (HiveMQ Cloud) -----
-const char* MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
-const uint16_t MQTT_PORT = 8883;
+// NOTE: HiveMQ Cloud requires TLS on 8883, but we will NOT verify the cert.
+const char* MQTT_HOST     = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
+const uint16_t MQTT_PORT  = 8883;
+const char* MQTT_USERNAME = "Panic2";
+const char* MQTT_PASSWORD_MQTT = "123@Firstlove";
 
-const char* MQTT_TOPIC_SUB = "smart-alert/sensors/#";
+// Subscribe topic
+const char* MQTT_TOPIC_SUB = "Alarm";
 
 String localMac;
-
-// ISRG Root X1 (Let’s Encrypt) CA certificate
-static const char ISRG_Root_X1[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-MIIFazCCA1OgAwIBAgISA6wZ0pniS3pSke1Mt2rt7EUbMA0GCSqGSIb3DQEBCwUA
-MEoxCzAJBgNVBAYTAlVTMRYwFAYDVQQKDA1MZXQncyBFbmNyeXB0MRMwEQYDVQQD
-DApMRSBSb290IFgxMB4XDTIxMDkwNjE2MjU0NloXDTQxMDkwNjE2MjU0NlowSjEL
-MAkGA1UEBhMCVVMxFjAUBgNVBAoMDUxldCdzIEVuY3J5cHQxEzARBgNVBAMMCkxF
-IFJvb3QgWDEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCvnD7sRZqD
-Z8x2aE7hJ5Q9U4e6dQ4y4m8J7czhyyu6V0cJ5C4mMZ2J4b7q7sJbXGQJv6m7d4iP
-7l6c4oyf+eU8VdAELlYqv1y0o8kz2aQ7G5r8SBS6iVQFhHFs3tcQW5+1Cfl3m1mZ
-D3r3G5i9S8Ke1vL3Y0j0J6htyT1gqbtppqX0kO2uhYd8r1q0gkWgP8q7g2bWmJrQ
-xG8H6oQ0D6arG6kqz5hL5XfC8cBca4luaj9nQz5xgCclq0F2N/0vv0I0kq7xErxU
-p2X/9l2mVQz8rAbn3h0KFE8MZ+S1L1iZf9o5a9Z9X3j0kYk3l6nO3Y0cD0u2p6dm
-6oAXnEL7HSw3GxWk8iYh2S8kqN7z4yXb7Jf3vW7pH7iF1sT6m8q4fY4dN8F7d8u+
-c5G4QF1f3c3r9rj1vZcB6e8RkJcQGm4lOvwXvVX8l6j0E3n0i7sD+X8vna6a5EB6
-e4qI0bY8w2B0EwK9hX2dL3cZ1n3m0S8B5Jm7f2hFzE9zP1eGZ3z1S9U7B8o3b3Pq
-0i3iO6m1e0tVezZp0nYVqk5dN7m2z0Dho0X8yWn9m6Jj1L9fYHq8tQIDAQABo0Iw
-QDAdBgNVHQ4EFgQUYb4U7Qn8g+KmoV0qGdKk+v1pQkcwHwYDVR0jBBgwFoAUYb4U
-7Qn8g+KmoV0qGdKk+v1pQkcwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsF
-AAOCAgEAxPz0oDk7KQ3pS7b1ygaTtP3a9xY0vJdV5vYg8l7mVwz8HT9V7uCz5k+f
-FQ6lQ9lUNv1q7q4vJ1L8G1yQm3rXhMEd3tQG6w3p8dY0w3xv7sQWc1+UqCjOJf8Q
-C2nV8uJp8/jnTgTn3c5JcO8lH8e4xgH5q8q6Ew3eI6mN0qT9mE6m2R0h8VsvjGqj
-wQqz4YgQy3H+H7a0w3/8LZ7Z3m6nNl+uI2x9K2y3oO+4g5d8+8qf3iB1Zok3k1mS
-4t2kU+y2pX8QHf3xw7sQ7R0Zf1V6mQ7f3q9Gm9X9b7h1KQ6gq/3Jt2eQF9QKxwXz
-F8mUTu7S3p7Kz3y3m5x3kWG5dL5n4j3xv7mQhQh0k2r2qB3kqkW9h3oT7hQd1p0D
-1r6XStQjPqQ3lqJkVgGgSx8zPvq4n8tVYbFfZ5nK5q9wJ8w5bQ4r3n1uYvYQPG4t
-mX5V5JQn8pV4y4bQ0rV3v4j7T3QyB5c9x2k7m3hYb3dT6E7S9I5jxZs8x0iQ9N2U
-z2xPZ7U3
------END CERTIFICATE-----
-)EOF";
 
 // Clients
 WiFiClientSecure secureClient;
@@ -70,11 +44,47 @@ float lastTemperature = NAN;
 int lastMotion = -1;
 
 // Timing
-const uint32_t BEEP_MS = 500;
+const uint32_t BEEP_MS        = 500;
 const uint32_t WHITE_BLINK_MS = 120;
 
 // Buzzer wiring: set true if your buzzer is active-low (buzzes when pin is LOW).
 const bool BUZZER_ACTIVE_LOW = true;
+
+// -------------------- DEBUG HELPERS --------------------
+
+const char* wifiStatusToStr(wl_status_t s) {
+  switch (s) {
+    case WL_IDLE_STATUS:    return "WL_IDLE_STATUS";
+    case WL_NO_SSID_AVAIL:  return "WL_NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED: return "WL_SCAN_COMPLETED";
+    case WL_CONNECTED:      return "WL_CONNECTED";
+    case WL_CONNECT_FAILED: return "WL_CONNECT_FAILED";
+    case WL_CONNECTION_LOST:return "WL_CONNECTION_LOST";
+    case WL_DISCONNECTED:   return "WL_DISCONNECTED";
+    default:                return "UNKNOWN";
+  }
+}
+
+void printMqttState() {
+  int8_t s = mqtt.state();
+  Serial.print("MQTT state code: ");
+  Serial.println(s);
+  switch (s) {
+    case -4: Serial.println("MQTT_STATE: -4 = CONNECTION_TIMEOUT"); break;
+    case -3: Serial.println("MQTT_STATE: -3 = CONNECTION_LOST"); break;
+    case -2: Serial.println("MQTT_STATE: -2 = CONNECT_FAILED"); break;
+    case -1: Serial.println("MQTT_STATE: -1 = DISCONNECTED"); break;
+    case  0: Serial.println("MQTT_STATE: 0 = CONNECTED"); break;
+    case  1: Serial.println("MQTT_STATE: 1 = BAD_PROTOCOL"); break;
+    case  2: Serial.println("MQTT_STATE: 2 = BAD_CLIENT_ID"); break;
+    case  3: Serial.println("MQTT_STATE: 3 = UNAVAILABLE"); break;
+    case  4: Serial.println("MQTT_STATE: 4 = BAD_CREDENTIALS"); break;
+    case  5: Serial.println("MQTT_STATE: 5 = UNAUTHORIZED"); break;
+    default: Serial.println("MQTT_STATE: unknown"); break;
+  }
+}
+
+// -------------------- BUZZER & LED CONTROL --------------------
 
 void buzzerOn() {
   digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? LOW : HIGH);
@@ -110,6 +120,8 @@ void beepOnce(uint32_t durationMs) {
   buzzerOff();
 }
 
+// -------------------- LCD DISPLAY --------------------
+
 void lcdShow(float temperature, int motion) {
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -130,17 +142,27 @@ void lcdShow(float temperature, int motion) {
   }
 }
 
-
+// -------------------- MQTT CALLBACK --------------------
 
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
+  Serial.print("MQTT message received, topic: ");
+  Serial.print(topic);
+  Serial.print(", length: ");
+  Serial.println(length);
+
   static char buf[512];
   unsigned int len = min(length, (unsigned int)(sizeof(buf) - 1));
   memcpy(buf, payload, len);
   buf[len] = '\0';
 
+  Serial.print("Payload: ");
+  Serial.println(buf);
+
   StaticJsonDocument<256> doc;
   DeserializationError err = deserializeJson(doc, buf);
   if (err) {
+    Serial.print("JSON deserialization failed: ");
+    Serial.println(err.c_str());
     setBusyStart();
     beepOnce(BEEP_MS);
     setIdleLights();
@@ -148,8 +170,15 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   }
 
   float temperature = doc["temperature"] | NAN;
-  int motion = doc["motion"] | -1;
-  const char* mac = doc["mac"] | "";
+  int motion        = doc["motion"] | -1;
+  const char* mac   = doc["mac"] | "";
+
+  Serial.print("Decoded temperature: ");
+  Serial.println(temperature);
+  Serial.print("Decoded motion: ");
+  Serial.println(motion);
+  Serial.print("Decoded mac: ");
+  Serial.println(mac);
 
   setBusyStart();
   beepOnce(BEEP_MS);
@@ -157,9 +186,46 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   setIdleLights();
 }
 
+// -------------------- WIFI & MQTT CONNECT HELPERS --------------------
+
+// Ensure Wi-Fi is connected (used in setup and before MQTT)
+bool ensureWifiConnected(uint32_t timeoutMs = 20000) {
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
+  }
+  Serial.println("ensureWifiConnected(): waiting for Wi-Fi...");
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
+    Serial.print(".");
+    Serial.print(" status=");
+    Serial.println(wifiStatusToStr(WiFi.status()));
+    delay(500);
+  }
+  Serial.println();
+  Serial.print("Final WiFi status: ");
+  Serial.println(wifiStatusToStr(WiFi.status()));
+  return WiFi.status() == WL_CONNECTED;
+}
+
 void ensureMqttConnected() {
+  // Don’t try MQTT if Wi-Fi is down
+  if (!ensureWifiConnected()) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi not ready");
+    lcd.setCursor(0, 1);
+    lcd.print("MQTT skipped");
+
+    Serial.println("ensureMqttConnected(): WiFi not ready, skipping MQTT");
+    delay(1000);
+    return;
+  }
+
   while (!mqtt.connected()) {
-    String clientId = "esp32-alarm-" + String((uint32_t)ESP.getEfuseMac(), HEX);
+    String clientId = "alarm" + String((uint32_t)ESP.getEfuseMac(), HEX);
+
+    Serial.print("Attempting MQTT connection with clientId: ");
+    Serial.println(clientId);
 
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -168,7 +234,12 @@ void ensureMqttConnected() {
     lcd.print("ClientID:");
     lcd.print(clientId.substring(0, 6)); // short for LCD
 
-    if (mqtt.connect(clientId.c_str())) {  // no username/password
+    // Attempt to connect (still using username/password)
+    if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD_MQTT)) {
+      Serial.println("MQTT connected successfully!");
+      Serial.print("Subscribing to topic: ");
+      Serial.println(MQTT_TOPIC_SUB);
+
       mqtt.subscribe(MQTT_TOPIC_SUB);
 
       lcd.clear();
@@ -179,6 +250,9 @@ void ensureMqttConnected() {
       lcd.print(MQTT_TOPIC_SUB);
       delay(1000);
     } else {
+      Serial.println("MQTT connect FAILED");
+      printMqttState();  // print the detailed state
+
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("MQTT: Failed");
@@ -189,8 +263,14 @@ void ensureMqttConnected() {
   }
 }
 
+// -------------------- SETUP & LOOP --------------------
 
 void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println();
+  Serial.println("=== Smart Alarm (ESP32) starting ===");
+
   pinMode(LED_RED_PIN, OUTPUT);
   pinMode(LED_GREEN_PIN, OUTPUT);
   pinMode(LED_WHITE_PIN, OUTPUT);
@@ -209,9 +289,13 @@ void setup() {
   lcd.print("Starting...");
 
   localMac = WiFi.macAddress();
+  Serial.print("Device MAC: ");
+  Serial.println(localMac);
 
   // Wi-Fi
   WiFi.mode(WIFI_STA);
+  Serial.print("Connecting to WiFi SSID: ");
+  Serial.println(WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   lcd.clear();
@@ -219,47 +303,70 @@ void setup() {
   lcd.print("WiFi: Connecting");
   lcd.setCursor(0, 1);
   lcd.print("to hotspot...");
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-    delay(300);
-  }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    // Show "Ready" once Wi-Fi is connected
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Ready");
-    lcd.setCursor(0, 1);
-    lcd.print(WIFI_SSID);
-    delay(1000);
-  } else {
+  if (!ensureWifiConnected()) {
+    Serial.println("WiFi connection FAILED. Check SSID/password/hotspot.");
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("WiFi failed");
     lcd.setCursor(0, 1);
     lcd.print("Check hotspot");
     delay(1500);
+    return;  // stop setup here
   }
 
-  // TLS
-  secureClient.setCACert(ISRG_Root_X1);
+  Serial.println("WiFi connected!");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Show SSID on LCD
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("WiFi Ready:");
+  lcd.setCursor(0, 1);
+  lcd.print(WIFI_SSID);
+  delay(1500);
+
+  // ---- TLS: ignore certificate verification ----
+  // WARNING: This is insecure. Use only for testing.
+  secureClient.setInsecure();
+  Serial.println("WiFiClientSecure set to INSECURE (no cert verification)");
 
   // MQTT
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMqttMessage);
-  ensureMqttConnected();
 
-  // Keep device idle/ready until first data arrives
+  // 10-second countdown BEFORE MQTT
+  for (int i = 10; i > 0; i--) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MQTT in:");
+    lcd.print(i);
+    lcd.print("s");
+    lcd.setCursor(0, 1);
+    lcd.print(WIFI_SSID);
+    Serial.print("MQTT connect in ");
+    Serial.print(i);
+    Serial.println(" s");
+    delay(1000);
+  }
+
+  Serial.println("Calling ensureMqttConnected()...");
+  ensureMqttConnected();   // will check Wi-Fi again internally
+
+  // Ready screen
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Ready");
   lcd.setCursor(0, 1);
   lcd.print("MQTT OK");
   setIdleLights();
+  Serial.println("Setup complete, entering loop()");
 }
 
 void loop() {
   if (!mqtt.connected()) {
+    Serial.println("Loop: MQTT not connected, calling ensureMqttConnected()");
     ensureMqttConnected();
   }
   mqtt.loop();
