@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <LiquidCrystal_I2C.h>
 #include <ArduinoJson.h>
+#include "secrets.h"
 
 // ----- Pins -----
 #define LED_RED_PIN    32  // Power (steady on)
@@ -18,19 +19,14 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 #define I2C_SDA 26
 #define I2C_SCL 25
 
-// ----- Wi-Fi -----
-const char* WIFI_SSID     = "HONOR_X7c";
-const char* WIFI_PASSWORD = "uuuuuuuub";
-
 // ----- MQTT (HiveMQ Cloud) -----
 const char* MQTT_HOST = "e70fab49237b417185f60ee78a9ba55a.s1.eu.hivemq.cloud";
 const uint16_t MQTT_PORT = 8883;
-
 const char* MQTT_TOPIC_SUB = "smart-alert/sensors/#";
 
 String localMac;
 
-// ISRG Root X1 (Let’s Encrypt) CA certificate
+// ISRG Root X1 (Let's Encrypt) CA certificate
 static const char ISRG_Root_X1[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgISA6wZ0pniS3pSke1Mt2rt7EUbMA0GCSqGSIb3DQEBCwUA
@@ -61,38 +57,27 @@ z2xPZ7U3
 -----END CERTIFICATE-----
 )EOF";
 
-// Clients
 WiFiClientSecure secureClient;
 PubSubClient mqtt(secureClient);
 
-// Display state
 float lastTemperature = NAN;
 int lastMotion = -1;
 
-// Timing
 const uint32_t BEEP_MS = 500;
 const uint32_t WHITE_BLINK_MS = 120;
-
-// Buzzer wiring: set true if your buzzer is active-low (buzzes when pin is LOW).
 const bool BUZZER_ACTIVE_LOW = true;
 
-void buzzerOn() {
-  digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? LOW : HIGH);
-}
-void buzzerOff() {
-  digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? HIGH : LOW);
-}
+void buzzerOn() { digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? LOW : HIGH); }
+void buzzerOff() { digitalWrite(BUZZER_PIN, BUZZER_ACTIVE_LOW ? HIGH : LOW); }
 
 void setIdleLights() {
-  digitalWrite(LED_RED_PIN, HIGH);   // Power steady
-  digitalWrite(LED_GREEN_PIN, HIGH); // Idle on
-  digitalWrite(LED_WHITE_PIN, LOW);  // Busy off
-  buzzerOff();                       // Ensure silent when idle
+  digitalWrite(LED_RED_PIN, HIGH);
+  digitalWrite(LED_GREEN_PIN, HIGH);
+  digitalWrite(LED_WHITE_PIN, LOW);
+  buzzerOff();
 }
 
-void setBusyStart() {
-  digitalWrite(LED_GREEN_PIN, LOW);  // Not idle
-}
+void setBusyStart() { digitalWrite(LED_GREEN_PIN, LOW); }
 
 void blinkWhiteDuring(uint32_t durationMs) {
   uint32_t start = millis();
@@ -114,23 +99,13 @@ void lcdShow(float temperature, int motion) {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Temp: ");
-  if (isnan(temperature)) {
-    lcd.print("--.-");
-  } else {
-    lcd.print(temperature, 1);
-  }
+  if (isnan(temperature)) lcd.print("--.-"); else lcd.print(temperature, 1);
   lcd.print(" C");
 
   lcd.setCursor(0, 1);
   lcd.print("Motion: ");
-  if (motion < 0) {
-    lcd.print("-");
-  } else {
-    lcd.print(motion);
-  }
+  if (motion < 0) lcd.print("-"); else lcd.print(motion);
 }
-
-
 
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   static char buf[512];
@@ -149,7 +124,6 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
 
   float temperature = doc["temperature"] | NAN;
   int motion = doc["motion"] | -1;
-  const char* mac = doc["mac"] | "";
 
   setBusyStart();
   beepOnce(BEEP_MS);
@@ -166,11 +140,10 @@ void ensureMqttConnected() {
     lcd.print("MQTT: Connecting");
     lcd.setCursor(0, 1);
     lcd.print("ClientID:");
-    lcd.print(clientId.substring(0, 6)); // short for LCD
+    lcd.print(clientId.substring(0, 6));
 
-    if (mqtt.connect(clientId.c_str())) {  // no username/password
+    if (mqtt.connect(clientId.c_str())) {
       mqtt.subscribe(MQTT_TOPIC_SUB);
-
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("MQTT: Connected");
@@ -189,7 +162,6 @@ void ensureMqttConnected() {
   }
 }
 
-
 void setup() {
   pinMode(LED_RED_PIN, OUTPUT);
   pinMode(LED_GREEN_PIN, OUTPUT);
@@ -198,7 +170,6 @@ void setup() {
   buzzerOff();
   setIdleLights();
 
-  // I2C / LCD
   Wire.begin(I2C_SDA, I2C_SCL);
   lcd.init();
   lcd.backlight();
@@ -210,7 +181,6 @@ void setup() {
 
   localMac = WiFi.macAddress();
 
-  // Wi-Fi
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -218,14 +188,11 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("WiFi: Connecting");
   lcd.setCursor(0, 1);
-  lcd.print("to hotspot...");
+  lcd.print("to network...");
   uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-    delay(300);
-  }
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) delay(300);
 
   if (WiFi.status() == WL_CONNECTED) {
-    // Show "Ready" once Wi-Fi is connected
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Ready");
@@ -237,19 +204,15 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("WiFi failed");
     lcd.setCursor(0, 1);
-    lcd.print("Check hotspot");
+    lcd.print("Check config");
     delay(1500);
   }
 
-  // TLS
   secureClient.setCACert(ISRG_Root_X1);
-
-  // MQTT
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMqttMessage);
   ensureMqttConnected();
 
-  // Keep device idle/ready until first data arrives
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Ready");
@@ -259,8 +222,6 @@ void setup() {
 }
 
 void loop() {
-  if (!mqtt.connected()) {
-    ensureMqttConnected();
-  }
+  if (!mqtt.connected()) ensureMqttConnected();
   mqtt.loop();
 }
